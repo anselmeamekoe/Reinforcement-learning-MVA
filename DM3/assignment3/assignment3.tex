@@ -1,0 +1,265 @@
+\documentclass[a4paper]{article}
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{amsmath,amsfonts,amssymb,amsthm}
+\usepackage[a4paper, bottom=1.3in, top=1.3in, right=1in, left=1in]{geometry}
+\usepackage[usenames,dvipsnames]{xcolor}
+\usepackage[lined,boxed]{algorithm2e}
+\usepackage{natbib}
+\usepackage{dsfont}
+\usepackage{tikz}
+\usetikzlibrary{calc}
+\definecolor{amaranth}{rgb}{0.9, 0.17, 0.31}
+\newcommand{\rcol}[1]{{\color{amaranth}#1}}
+
+\usepackage{todonotes}
+\newcommand{\todomp}[1]{\todo[color=Green!10, inline]{\small MP: #1}}
+\newcommand{\todompout}[1]{\todo[color=Green!10]{\scriptsize MP: #1}}
+
+\newcommand{\wh}[1]{\widehat{#1}}
+\newcommand{\wt}[1]{\widetilde{#1}}
+\newcommand{\transp}{\intercal}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Insert your name here
+\newcommand{\fullname}{FILL fullname command at the beginning of latex document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\lecture}[3]{
+   \pagestyle{myheadings}
+   \thispagestyle{plain}
+   \newpage
+   \setcounter{page}{1}
+   \noindent
+   \begin{center}
+   \framebox{
+      \vbox{\vspace{2mm}
+              \hbox to .97\textwidth { {\bf MVA: Reinforcement Learning (2020/2021) \hfill Homework 3} }
+       \vspace{6mm}
+       \hbox to .97\textwidth { {\Large \hfill #1 \hfill } }
+       \vspace{6mm}
+       \hbox to .97\textwidth { {Lecturers: \it A. Lazaric, M. Pirotta  \hfill {{\footnotesize(
+           December 10, 2020
+        %    \today
+           )}}} }
+      \vspace{2mm}}
+   }
+   \end{center}
+   Solution by {\color{amaranth}\fullname}
+   \markboth{#1}{#1}
+   \vspace*{4mm}
+}
+
+
+\DeclareMathOperator*{\argmax}{\arg\,\max}
+\DeclareMathOperator*{\argmin}{\arg\,\min}
+\DeclareMathOperator*{\arginf}{\arg\,\inf}
+
+
+\setlength{\parindent}{0cm}
+\begin{document}
+\lecture{Exploration in Reinforcement Learning (theory)}{3}
+
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Full name: {\color{amaranth}\fullname}}
+\lhead{Exploration in Reinforcement Learning}
+\cfoot{\thepage}
+
+\textbf{Instructions}
+\begin{itemize}
+    \item The deadline is \textbf{January 10, 2021. 23h00}
+    \item By doing this homework you agree to the \emph{late day policy, collaboration and misconduct rules} reported on \href{https://piazza.com/class/kf86owfvi2u2lg?cid=8}{Piazza}.
+    \item \textbf{Mysterious or unsupported answers will not receive full credit}.
+    A correct answer, unsupported by calculations, explanation, or algebraic work will receive no credit; an incorrect answer supported by substantially correct calculations and explanations might still receive partial credit.
+    \item Answers should be provided in \textbf{English}.
+\end{itemize}
+
+
+\section{UCB}
+Denote by $S_{j,t} = \sum_{k=1}^t X_{i_k,k} \cdot \mathds{1}(i_k = a)$ and by $N_{j,t} = \sum_{k=1}^t \mathds{1}(i_k = j)$ the cumulative reward and number of pulls of arm $j$ at time $t$. Denote by $\wh\mu_{j,t} = \frac{S_{j,t}}{N_{j,t}}$ the estimated mean. Recall that, at each timestep $t$, UCB plays the arm $i_t$ such that
+\[
+    i_t \in \argmax_{j} \wh\mu_{j,t} + U(N_{j,t}, \delta)
+\]
+Is $\wh\mu_{j,t}$ an unbiased estimator (i.e., $\mathbb{E}_{UCB}[\wh\mu_{j,t}] = \mu_j$)? Justify your answer.
+
+\section{Best Arm Identification}
+In best arm identification (BAI), the goal is to identify the best arm in as few samples as possible.
+We will focus on the fixed-confidence setting where the goal is to identify the best arm with high probability $1-\delta$ in as few samples as possible.
+A player is given $k$ arms with expected reward $\mu_i$. At each timestep $t$, the player selects an arm to pull ($I_t$), and they observe some reward ($X_{I_t,t}$) for that sample.
+At any timestep, once the player is confident that they have identified the best arm, they may decide to stop.
+
+\paragraph{$\delta$-correctness and fixed-confidence objective.}
+Denote by $\tau_\delta$ the stopping time associated to the stopping rule, by $i^\star$ the best arm and by $\wh{i}$ an estimate of the best arm.
+An algorithm is $\delta$-correct if it predicts the correct answer with probability at least $1-\delta$. Formally, if $\mathbb{P}_{\mu_1, \ldots, \mu_k}(\wh{i} \neq i^\star) \leq \delta$ and $\tau_{\delta} < \infty$ almost surely for any $\mu_1, \ldots, \mu_k$.
+Our goal is to find a $\delta$-correct algorithm that minimizes the sample complexity, that is, $\mathbb{E}[\tau_\delta]$ the expected number of sample needed to predict an answer.
+
+\vspace{.2in}
+\underline{Notation}
+\begin{itemize}
+    \item $I_t$: the arm chosen at round $t$.
+    \item $X_{i,t} \in [0,1]$: reward observed for arm $i$ at round $t$.
+    \item $\mu_i$: the expected reward of arm $i$.
+    \item $\mu^\star = \max_i \mu_i$.
+    \item $\Delta_i = \mu^\star - \mu_i$: suboptimality gap.
+\end{itemize}
+
+Consider the following algorithm
+\begin{algorithm}[h]
+    \SetAlgoLined
+    \DontPrintSemicolon
+    \KwIn{$k$ arms, confidence $\delta$}
+    $S = \{1, \ldots, k\}$\;
+    \For{$t = 1, \ldots$}{
+        Pull \textbf{all} arms in $S$\;
+        $S = S \setminus \Big\{i \in S \;:\; \exists j \in S,\; \wh{\mu}_{j,t} - U(t,\delta) \geq \wh{\mu}_{i,t} + U(t, \delta)  \Big\}$\;
+        \If{$|S|=1$}{
+            STOP\;
+            \textbf{return} $S$\;
+        } 
+    }
+\end{algorithm}
+
+The algorithm maintains an active set $S$ and an estimate of the empirical reward of each arm $\wh\mu_{i,t} = \frac{1}{t} \sum_{j=1}^t X_{i,j}$.
+\begin{itemize}
+    \item Compute the function $U(t,\delta)$ that satisfy the any-time confidence bound. For any arm $i \in [k]$
+    \[
+        \mathbb{P}\left(\bigcup_{t=1}^{\infty} \left\{ | \wh{\mu}_{i,t} - \mu_i | > U(t,\delta)\right\} \right) \leq \delta
+    \]
+    Use Hoeffding's inequality.
+    \item Let $\mathcal{E} = \bigcup_{i=1}^{k}\bigcup_{t=1}^{\infty} \left\{ | \wh{\mu}_{i,t} - \mu_i | > U(t,\delta')\right\}$. Using previous result shows that $\mathbb{P}(\mathcal{E}) \leq \delta$ for a particular choice of $\delta'$. This is called ``bad event'' since it means that the confidence intervals do not hold.
+    \item Show that with probability at least $1-\delta$, the optimal arm $i^\star =\argmax_i \{\mu_{i}\}$ remains in the active set $S$. Use your definition of $\delta'$ and start from the condition for arm elimination. From this, use the definition of $\neg \mathcal{E}$.
+    \item Under event $\neg \mathcal{E}$, show that an arm $i \neq i^\star$ will be removed from the active set when $\Delta_i \geq C_1 U(t, \delta')$ where $C_1 > 1$ is a constant. Compute the time required to have such condition for each non-optimal arm. Use the condition of arm elimination applied to arm $i^\star$.
+    \item Compute a bound on the sample complexity (after how many rounds the algorithm stops) for identifying the optimal arm w.p. $1-\delta$. 
+\end{itemize}
+
+Note that also a variations of UCB are effective in pure exploration.
+
+
+\section{Bernoulli Bandits}
+In this exercise, you compare KL-UCB and UCB empirically with Bernoulli rewards $X_t \sim Bern(\mu_{I_t})$.
+
+\begin{itemize}
+    \item Implement KL-UCB and UCB
+    \begin{description}
+        \item[KL-UCB:]
+        \[
+            I_t = \argmax_i \max \bigg\{ \mu \in [0,1] : d(\wh\mu_{i, t},\mu) \leq \frac{\log(1+t\log^2(t))}{N_{i,t}} \bigg\}    
+        \]  
+        where $d$ is the Kullback–Leibler divergence (see closed form for Bernoulli). A way of computing the inner $\max$ is through bisection (finding the zero of a function).
+        \item[UCB:]
+        \[
+            I_t = \argmax_i \wh\mu_{i,t} + \sqrt{\frac{\log(1+t\log^2(t))}{2N_{i,t}}}    
+        \]
+        that has been tuned for 1/2-subgaussian problems.
+    \end{description}
+    \item Let $n = 10000$ and $k = 2$. Plot the \underline{expected} regret of each algorithm as a function of $\Delta$ when $\mu_1 = 1/2$ and $\mu_2 = 1/2 + \Delta$. 
+    \item Repeat the above experiment with $\mu_1 = 1/10$ and $\mu_1 = 9/10$.
+    \item Discuss your results.
+\end{itemize}
+
+\section{Regret Minimization in RL}
+Consider a finite-horizon MDP $M^\star = (S, A, p_h, r_h)$ with stage-dependent transitions and rewards. Assume rewards are bounded in $[0,1]$.
+We want to prove a regret upper-bound for UCBVI. We will aim for the suboptimal regret bound ($T=KH$)
+\[
+    R(T) = \sum_{k=1}^K V^\star_1(s_{1,k}) - V^{\pi_k}_1(s_{1,k}) = \wt{O}(H^2S\sqrt{AK})
+\]
+Define the set of plausible MDPs as 
+\[
+    \mathcal{M}_k = \{ M = (S,A, p_{h,k}, r_{h,k}) ~:~ r_{h,k}(s,a) \in \beta^r_{h,k}(s,a), p_{h,k}(\cdot|s,a) \in \beta^p_{h,k}(s,a)  \}
+\]
+Confidence intervals can be anytime or not.
+
+\begin{itemize}
+    \item Define the event $\mathcal{E} = \{\forall k, M^\star \in \mathcal{M}_k\}$. Prove that $\mathbb{P}(\neg\mathcal{E}) \leq \delta/2$. First step, construct a confidence interval for rewards and transitions for each $(s,a)$ using Hoeffding and Weissmain inequality (see appendix), respectively. So, we want that
+    \[
+        \mathbb{P}\Big(\forall k,h,s,a : |r_{hk}(s,a) - r_h(s,a)| \leq \beta_{hk}^r(s,a) \wedge \|\wh{p}_{hk}(\cdot|s,a) - p_{h}(\cdot|s,a)\|_1\leq \beta_{hk}^p(s,a)\Big) \geq 1-\delta/2
+    \]
+    
+    \item Define the bonus function and consider the Q-function computed at episode $k$
+    \[
+        Q_{h,k}(s,a) = \wh{r}_{h,k}(s,a) + b_{h,k}(s,a) + \sum_{s'} \wh{p}_{h,k}(s'|s,a) V_{h+1,k}(s')
+    \]
+    with $V_{h,k}(s) = \min\{H, \max_a Q_{h,k}(s,a)\}$. Recall that $V_{H+1,k}(s) = V_{H+1}^\star(s) = 0$.
+    Prove that under event $\mathcal{E}$, $Q_k$ is optimistic, i.e.,
+    \[
+        Q_{h,k}(s,a) \geq Q^{\star}_h(s,a), \forall s,a
+    \]
+    where $Q^\star$ is the optimal Q-function of the unknown MDP $M^\star$.
+    Note that $\wh{r}_{H,k}(s,a) + b_{h,k}(s,a) \geq r_{h,k}(s,a)$ and thus $Q_{H,k}(s,a) \geq Q^\star_H(s,a)$ (for a properly defined bonus). Then use induction to prove that this holds for all the stages $h$.
+
+    \item In class we have seen that
+    \begin{equation}
+        \label{eq:ucbvi_rec}
+        \delta_{hk}(s_{1,k}) \leq \sum_{h=1}^H Q_{hk}(s_{hk},a_{hk}) - r(s_{hk},a_{hk}) - \mathbb{E}_{Y\sim p(\cdot|s_{hk},a_{hk})}[V_{h+1,k}(Y)]) + m_{hk}
+    \end{equation}
+    where $\delta_{hk}(s)=V_{hk}(s) - V_h^{\pi_k}(s)$ and $m_{hk} = \mathbb{E}_{Y\sim p(\cdot|s_{hk},a_{hk})}[\delta_{h+1,k}(Y)] - \delta_{h+1,k}(s_{h+1,k})$.
+    We now want to prove this result. Denote by $a_{hk}$ the action played by the algorithm (you will have to use the greedy property).
+    \begin{enumerate}
+        \item Show that $V^{\pi_{k}}_h(s_{hk}) = r(s_{hk},a_{hk}) + \mathbb{E}_{p}[V_{h+1,k}(s')] - \delta_{h+1,k}(s_{h+1,k}) - m_{h,k}$
+        \item Show that $V_{h,k}(s_{hk}) \leq Q_{h,k}(s_{hk},a_{hk})$.
+        \item Putting everything together prove Eq.~\ref{eq:ucbvi_rec}.
+    \end{enumerate}
+
+    \item Since $(m_{hk})_{hk}$ is an MDS, using Azuma-Hoeffding we show that with probability at least $1-\delta/2$
+    \[
+        \sum_{k,h} m_{hk} \leq 2H\sqrt{KH \log(2/\delta)}
+    \]
+    Show that the regret is upper bounded with probability $1-\delta$ by
+    \[
+        R(T) \leq \sum_{kh} b_{hk}(s_{hk},a_{hk}) + 2H\sqrt{KH \log(2/\delta)}
+    \]
+
+    \item Finally, we have that 
+    \begin{align*}
+        \sum_{h,k} \frac{1}{\sqrt{N_{hk}(s_{hk},a_{hk})}} = \sum_{h=1}^H\sum_{s,a} \sum_{i=1}^{N_{h,K}(s,a)} \frac{1}{\sqrt{i}} \leq \sum_{h=1}^H\sum_{s,a} \sqrt{N_{hK}(s,a)}
+    \end{align*}
+    Complete this by showing an upper-bound of $H\sqrt{SAK}$, which leads to $R(T) \lesssim H^2S\sqrt{AK}$
+\end{itemize}
+
+\begin{algorithm}[t]
+    \DontPrintSemicolon
+    Initialize $Q_{h1}(s,a) = 0$ for all $(s,a) \in S\times A$ and $h=1,\ldots,H$
+	\vspace{0.1in}
+
+	\For{$k=1, \ldots, K$}{
+		Observe initial state $s_{1k}$ \textit{(arbitrary)}
+
+            Estimate empirical MDP $\wh{M}_k = (S, A, \wh{p}_{hk}, \wh{r}_{hk}, H)$ from $\mathcal{D}_{k}$
+            {\scriptsize
+                    \begin{align*}
+                            \wh{p}_{hk}(s'|s,a) = \frac{\sum_{i=1}^{k-1} \mathds{1}\{(s_{hi},a_{hi},s_{h+1,i})=(s,a,s')\}}{N_{hk}(s,a)} , \quad
+                            \wh{r}_{hk}(s,a)    = \frac{\sum_{i=1}^{k-1} r_{hi} \cdot \mathds{1}\{(s_{hi},a_{hi})=(s,a)\}}{N_{hk}(s,a)}
+                    \end{align*}
+            }
+
+            Planning (by backward induction) for $\pi_{hk}$ using $\wh{M}_k$\;
+            \For{$h=H,\ldots,1$}{
+                $Q_{h,k}(s,a) = \wh{r}_{h,k}(s,a) + b_{h,k}(s,a) + \sum_{s'} \wh{p}_{h,k}(s'|s,a) V_{h+1,k}(s')$\;
+                $V_{h,k}(s) = \min\{H, \max_a Q_{h,k}(s,a)\}$\;
+            }
+            Define $\pi_{h,k}(s) = \argmax_{a} Q_{h,k}(s,a)$, $\forall s,h$\;
+
+		\For{$h=1, \ldots, H$}{
+			Execute $a_{hk} = \pi_{hk}(s_{hk})$\;
+            Observe $r_{hk}$ and $s_{h+1,k}$\;
+            $N_{h,k+1}(s_{hk},a_{hk}) = N_{h,k}(s_{hk},a_{hk}) + 1$
+		}
+    }
+    \caption{UCBVI}
+    \label{alg:ucbvi}
+\end{algorithm}
+
+\appendix
+\section{Weissmain inequality}
+Denote by $\wh{p}(\cdot|s,a)$ the estimated transition probability build using $n$ samples drawn from $p(\cdot|s,a)$. Then we have that 
+\[
+    \mathbb{P}(\|\wh{p}_h(\cdot|s,a) - p_h(\cdot|s,a)\|_1 \geq \epsilon) \leq  (2^S - 2) \exp\Big(- \frac{n \epsilon^2}{2} \Big) 
+\]
+
+\bibliographystyle{plainnat}
+\bibliography{bibliography}
+\end{document}
